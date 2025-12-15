@@ -64,7 +64,7 @@ def main():
         # --- Figure Setup ---
         # 1. REDUCED SIZE: (5, 6.25) is smaller but keeps the ~0.8 aspect ratio.
         # At 150 DPI, this results in an image 750px wide by 937px tall.
-        fig, ax = plt.subplots(figsize=(5, 6.25), dpi=150)
+        fig, ax = plt.subplots(figsize=(4, 4.8), dpi=150)
 
         for i, player in enumerate(selected_players):
             subset = plot_df[plot_df['Name'] == player]
@@ -171,3 +171,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
