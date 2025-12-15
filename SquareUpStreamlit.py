@@ -52,112 +52,119 @@ def main():
 
     # Filter Data for Graph
     plot_df = graph_df[graph_df['Name'].isin(selected_players)]
-    
-    # Setup Figure (14x6 Widescreen)
-    fig, ax = plt.subplots(figsize=(14, 6), dpi=150)
 
-    # Color Logic
+    # --- LAYOUT CHANGE: Split Screen ---
+    # col_main takes 75% width, col_stats takes 25% width
+    col_main, col_stats = st.columns([3, 1], gap="medium")
+
+    # Color Logic (Defined early to use in both columns if needed)
     base_colors = sns.color_palette("deep", n_colors=max(len(selected_players), 1))
     colors = list(base_colors)
     colors[0] = '#50ae26' 
 
-    # Containers for Table Data
-    table_cell_text = []
-    table_rows = []
-    table_colors = []
+    with col_main:
+        # --- Figure Setup (Portrait Mode) ---
+        # Changed figsize from (14, 6) to (9, 12) to emphasize verticality
+        fig, ax = plt.subplots(figsize=(9, 12), dpi=150)
 
-    # --- 1. Process Selected Players ---
-    for i, player in enumerate(selected_players):
-        subset = plot_df[plot_df['Name'] == player]
-        if subset.empty: continue
+        # --- Plotting Loop ---
+        for i, player in enumerate(selected_players):
+            subset = plot_df[plot_df['Name'] == player]
+            if subset.empty: continue
+                
+            color = colors[i] if i < len(colors) else colors[-1]
+
+            # Trend Line
+            ax.plot(subset['squared_up_rate'], subset['launch_angle'], color=color, 
+                    linewidth=3, alpha=0.4, label=player)
             
-        color = colors[i] if i < len(colors) else colors[-1]
+            # Bubbles
+            ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
+                       s=subset['obs_percentage'] * 1200, alpha=0.85, 
+                       color=color, edgecolor='white', linewidth=0.75, zorder=3)
 
-        # Trend Line (X=Squared Up, Y=Launch Angle)
-        ax.plot(subset['squared_up_rate'], subset['launch_angle'], color=color, 
-                linewidth=3, alpha=0.4, label=player)
+        # --- Axis Formatting ---
+        ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold')
+        ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold')
         
-        # Bubbles
-        ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
-                   s=subset['obs_percentage'] * 1200, alpha=0.85, 
-                   color=color, edgecolor='white', linewidth=0.75, zorder=3)
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+        ax.set_ylim(-40, 60)
+        ax.set_yticks(np.arange(-40, 61, 5)) # More granular ticks for the taller axis
         
-        # Get Stats for Table
+        # Dynamic X-Axis Logic
+        min_rate_in_view = plot_df['squared_up_rate'].min()
+        if min_rate_in_view > 0.45:
+            x_start = 0.4
+        else:
+            x_start = max(0, min_rate_in_view - 0.05)
+            
+        ax.set_xlim(x_start, 1.0)
+        
+        # Legend (Upper Left)
+        ax.legend(loc='upper left', frameon=True, fontsize=12)
+        ax.grid(True, alpha=0.25)
+        sns.despine()
+
+        # Render Plot
+        st.pyplot(fig, use_container_width=True)
+
+    with col_stats:
+        st.subheader("Stats Comparison")
+        st.markdown("---")
+        
+        # --- Build Native Streamlit Table ---
         if stats_df is not None:
-            p_stats = stats_df[stats_df['Name'] == player]
-            if not p_stats.empty:
-                p_stats = p_stats.iloc[0]
-                
-                bat_spd = f"{p_stats['Bat Speed']:.1f}"
-                hh_rate = f"{p_stats['HH%']:.1%}"
-                gb_str = f"{p_stats['GB%']:.0%} ({p_stats['GB SQ%']:.0%})"
-                fb_str = f"{p_stats['FB%']:.0%} ({p_stats['FB SQ%']:.0%})"
-                
-                table_cell_text.append([bat_spd, hh_rate, gb_str, fb_str])
-                table_rows.append(player)
-                table_colors.append(color)
-
-    # --- 2. Add League Average Row ---
-    if stats_df is not None:
-        lg_stats = stats_df[stats_df['Name'] == 'League Average']
-        if not lg_stats.empty:
-            lg = lg_stats.iloc[0]
+            # Gather stats for selected players + League Average
+            # We want to maintain the color order, so we loop through selected_players
+            display_rows = []
             
-            lg_bat_spd = f"{lg['Bat Speed']:.1f}"
-            lg_hh_rate = f"{lg['HH%']:.1%}"
-            lg_gb_str = f"{lg['GB%']:.0%} ({lg['GB SQ%']:.0%})"
-            lg_fb_str = f"{lg['FB%']:.0%} ({lg['FB SQ%']:.0%})"
+            # 1. Selected Players
+            for player in selected_players:
+                p_stats = stats_df[stats_df['Name'] == player]
+                if not p_stats.empty:
+                    row = p_stats.iloc[0].to_dict()
+                    row['Type'] = 'Player'
+                    display_rows.append(row)
             
-            table_cell_text.append([lg_bat_spd, lg_hh_rate, lg_gb_str, lg_fb_str])
-            table_rows.append("League Avg")
-            table_colors.append("#e0e0e0")
-
-    # --- Axis Formatting ---
-    ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold')
-    ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold')
-    
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_ylim(-40, 60)
-    ax.set_yticks(np.arange(-40, 61, 10))
-    
-    # --- Dynamic X-Axis Logic ---
-    # Find the lowest squared-up rate in the current view
-    min_rate_in_view = plot_df['squared_up_rate'].min()
-    
-    # If the lowest data point is safe (e.g., > 45%), cut the graph at 40%
-    # Otherwise, give a small buffer (0.05) below the minimum, floored at 0
-    if min_rate_in_view > 0.45:
-        x_start = 0.4
-    else:
-        x_start = max(0, min_rate_in_view - 0.05)
-        
-    ax.set_xlim(x_start, 1.0)
-    
-    # --- Legend (Upper Left) ---
-    ax.legend(loc='upper left', frameon=True, fontsize=12)
-    ax.grid(True, alpha=0.25)
-    sns.despine()
-
-    # --- Data Table (Bottom Left) ---
-    if table_cell_text:
-        col_labels = ["Bat Spd (All Swings)", "HH%", "GB% (SQ%)", "FB+ (SQ%)"]
-        
-        the_table = plt.table(
-            cellText=table_cell_text,
-            rowLabels=table_rows,
-            colLabels=col_labels,
-            rowColours=table_colors,
-            cellLoc='center',
-            loc='bottom left', # Anchor to bottom left
-            # bbox: [x, y, width, height] relative to axes
-            # Positioned at x=0.02 (left side), y=0.02 (bottom)
-            bbox=[0.02, 0.02, 0.45, 0.15 + (0.04 * len(table_rows))] 
-        )
-        the_table.auto_set_font_size(False)
-        the_table.set_fontsize(9)
-        the_table.scale(1, 1.5) 
-
-    st.pyplot(fig, use_container_width=True)
+            # 2. League Average
+            lg_stats = stats_df[stats_df['Name'] == 'League Average']
+            if not lg_stats.empty:
+                row = lg_stats.iloc[0].to_dict()
+                row['Type'] = 'Avg'
+                display_rows.append(row)
+            
+            if display_rows:
+                # Create Display DataFrame
+                d_df = pd.DataFrame(display_rows)
+                
+                # Rename cols for display (matches previous table headers)
+                cols_to_keep = {
+                    'Name': 'Name',
+                    'Bat Speed': 'Bat Spd',
+                    'HH%': 'HH%',
+                    'GB%': 'GB%',
+                    'GB SQ%': 'GB SQ%', 
+                    'FB%': 'FB+', 
+                    'FB SQ%': 'FB SQ%'
+                }
+                
+                # Filter and Rename
+                final_df = d_df[cols_to_keep.keys()].rename(columns=cols_to_keep)
+                
+                # Formatting percentages for display
+                for col in ['HH%', 'GB%', 'GB SQ%', 'FB+', 'FB SQ%']:
+                    final_df[col] = final_df[col].apply(lambda x: f"{x:.0%}")
+                
+                final_df['Bat Spd'] = final_df['Bat Spd'].apply(lambda x: f"{x:.1f}")
+                
+                # Transpose for the "Side Panel" look (Optional, but looks good for comparison)
+                # Or just show as a list. Let's do a clean dataframe.
+                st.dataframe(
+                    final_df.set_index('Name'),
+                    use_container_width=True
+                )
+                
+                st.caption("GB = Ground Ball | FB+ = Fly Ball & Line Drive | SQ% = Squared-Up Rate on those batted balls.")
 
     with st.expander("View Underlying Data"):
         st.dataframe(plot_df.sort_values(by=['Name', 'launch_angle']))
