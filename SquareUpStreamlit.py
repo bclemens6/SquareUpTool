@@ -4,12 +4,19 @@ Created on Wed Nov 26 15:10:12 2025
 
 @author: benja
 """
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Nov 26 15:10:12 2025
+
+@author: benja
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import seaborn as sns
+import matplotlib.patheffects as path_effects 
 
 # Page Config
 st.set_page_config(page_title="Squared-Up Rate Explorer", layout="wide")
@@ -25,9 +32,8 @@ def load_data():
         return None, None
 
 def main():
-    st.title("⚾ Squared-Up Rate by Launch Angle")
-    st.markdown("Compare hitter performance relative to their theoretical maximum exit velocity.")
-
+    # REMOVED: st.title and st.markdown to save vertical space
+    
     graph_df, stats_df = load_data()
     
     if graph_df is None:
@@ -50,46 +56,75 @@ def main():
         st.info("Select a player to begin.")
         return
 
-    # Filter Data for Graph
-    plot_df = graph_df[graph_df['Name'].isin(selected_players)]
-
-    # --- LAYOUT CHANGE: Split Screen ---
-    # col_main takes 75% width, col_stats takes 25% width
-    col_main, col_stats = st.columns([3, 1], gap="medium")
-
-    # Color Logic (Defined early to use in both columns if needed)
+    # --- COLOR LOGIC ---
     base_colors = sns.color_palette("deep", n_colors=max(len(selected_players), 1))
     colors = list(base_colors)
     colors[0] = '#50ae26' 
+    
+    # --- FLOATING LEGEND (IN SIDEBAR) ---
+    # This solves the scrolling issue because the sidebar stays fixed
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Legend")
+    for player, color in zip(selected_players, colors):
+        st.sidebar.markdown(
+            f"<span style='color:{color}; font-size:1.2em;'>●</span> **{player}**", 
+            unsafe_allow_html=True
+        )
+
+    # Filter Data
+    plot_df = graph_df[graph_df['Name'].isin(selected_players)]
+
+    # --- LAYOUT CHANGE: Adjusted Split ---
+    # Changed from [3, 1] to [1.8, 1].
+    # By making the graph column narrower, we prevent the image from 
+    # scaling up to a massive height on wide monitors.
+    col_main, col_stats = st.columns([1.8, 1], gap="medium")
 
     with col_main:
-        # --- Figure Setup (Portrait Mode) ---
-        # Changed figsize from (14, 6) to (9, 12) to emphasize verticality
-        fig, ax = plt.subplots(figsize=(9, 12), dpi=150)
+        # --- Figure Setup ---
+        # Changed figsize from (9, 12) to (6, 7.5).
+        # This keeps the vertical aspect ratio but reduces total pixel count 
+        # to fit on a standard screen.
+        fig, ax = plt.subplots(figsize=(6, 7.5), dpi=150)
 
-        # --- Plotting Loop ---
         for i, player in enumerate(selected_players):
             subset = plot_df[plot_df['Name'] == player]
             if subset.empty: continue
                 
             color = colors[i] if i < len(colors) else colors[-1]
 
-            # Trend Line
+            # 1. Trend Line
             ax.plot(subset['squared_up_rate'], subset['launch_angle'], color=color, 
-                    linewidth=3, alpha=0.4, label=player)
+                    linewidth=3, alpha=0.4)
             
-            # Bubbles
+            # 2. Bubbles
             ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
                        s=subset['obs_percentage'] * 1200, alpha=0.85, 
                        color=color, edgecolor='white', linewidth=0.75, zorder=3)
+            
+            # 3. Inline Labels (Backup for screenshots)
+            # Find points for labels
+            top_point = subset.loc[subset['launch_angle'].idxmax()]
+            
+            # Function to add text with white outline (halo) for readability
+            def add_label(row, text_offset_y=0):
+                txt = ax.text(
+                    row['squared_up_rate'], row['launch_angle'] + text_offset_y, 
+                    f"  {player}", 
+                    color=color, fontsize=9, weight='bold', va='center'
+                )
+                txt.set_path_effects([path_effects.withStroke(linewidth=3, foreground='white')])
+
+            # Add label at the top of the curve
+            add_label(top_point, text_offset_y=0)
 
         # --- Axis Formatting ---
-        ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold')
-        ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold')
+        ax.set_ylabel('Launch Angle (°)', fontsize=12, weight='bold')
+        ax.set_xlabel('Squared-Up Rate', fontsize=12, weight='bold')
         
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
         ax.set_ylim(-40, 60)
-        ax.set_yticks(np.arange(-40, 61, 5)) # More granular ticks for the taller axis
+        ax.set_yticks(np.arange(-40, 61, 5)) 
         
         # Dynamic X-Axis Logic
         min_rate_in_view = plot_df['squared_up_rate'].min()
@@ -100,8 +135,7 @@ def main():
             
         ax.set_xlim(x_start, 1.0)
         
-        # Legend (Upper Left)
-        ax.legend(loc='upper left', frameon=True, fontsize=12)
+        # Grid and Despine
         ax.grid(True, alpha=0.25)
         sns.despine()
 
@@ -109,13 +143,13 @@ def main():
         st.pyplot(fig, use_container_width=True)
 
     with col_stats:
+        # Added a spacer to push the table down slightly to align with the graph's top
+        st.write("") 
         st.subheader("Stats Comparison")
         st.markdown("---")
         
         # --- Build Native Streamlit Table ---
         if stats_df is not None:
-            # Gather stats for selected players + League Average
-            # We want to maintain the color order, so we loop through selected_players
             display_rows = []
             
             # 1. Selected Players
@@ -137,7 +171,7 @@ def main():
                 # Create Display DataFrame
                 d_df = pd.DataFrame(display_rows)
                 
-                # Rename cols for display (matches previous table headers)
+                # Rename cols for display
                 cols_to_keep = {
                     'Name': 'Name',
                     'Bat Speed': 'Bat Spd',
@@ -157,8 +191,7 @@ def main():
                 
                 final_df['Bat Spd'] = final_df['Bat Spd'].apply(lambda x: f"{x:.1f}")
                 
-                # Transpose for the "Side Panel" look (Optional, but looks good for comparison)
-                # Or just show as a list. Let's do a clean dataframe.
+                # Show Dataframe
                 st.dataframe(
                     final_df.set_index('Name'),
                     use_container_width=True
@@ -171,5 +204,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
 
