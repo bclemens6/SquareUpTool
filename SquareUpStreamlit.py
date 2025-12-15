@@ -4,12 +4,6 @@ Created on Wed Nov 26 15:10:12 2025
 
 @author: benja
 """
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Nov 26 15:10:12 2025
-
-@author: benja
-"""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -204,4 +198,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
