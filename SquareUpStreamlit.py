@@ -75,12 +75,13 @@ def main():
             
         color = colors[i] if i < len(colors) else colors[-1]
 
-        # Trend Line
-        ax.plot(subset['launch_angle'], subset['squared_up_rate'], color=color, 
+        # Trend Line (SWAPPED X/Y)
+        # X: squared_up_rate, Y: launch_angle
+        ax.plot(subset['squared_up_rate'], subset['launch_angle'], color=color, 
                 linewidth=3, alpha=0.4, label=player)
         
-        # Bubbles
-        ax.scatter(subset['launch_angle'], subset['squared_up_rate'], 
+        # Bubbles (SWAPPED X/Y)
+        ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
                    s=subset['obs_percentage'] * 1200, alpha=0.85, 
                    color=color, edgecolor='white', linewidth=0.75, zorder=3)
         
@@ -115,13 +116,19 @@ def main():
             table_rows.append("League Avg")
             table_colors.append("#e0e0e0") # Grey background for distinct look
 
-    # Axis Formatting
-    ax.set_xlabel('Launch Angle (°)', fontsize=14, weight='bold')
-    ax.set_ylabel('Squared-Up Rate', fontsize=14, weight='bold')
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_ylim(0, 1.0)
-    ax.set_xlim(-40, 60)
-    ax.set_xticks(np.arange(-40, 61, 10))
+    # Axis Formatting (SWAPPED)
+    ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold') # Now Y
+    ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold') # Now X
+    
+    # Move Percent Formatter to X axis
+    ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    
+    # Swap Limits
+    ax.set_xlim(0, 1.0) 
+    ax.set_ylim(-40, 60)
+    
+    # Swap Ticks (Move specific ticks to Y axis)
+    ax.set_yticks(np.arange(-40, 61, 10))
     
     # Legend
     ax.legend(loc='upper right', frameon=True, fontsize=12)
