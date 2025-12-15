@@ -37,7 +37,6 @@ def main():
     # Sidebar
     st.sidebar.header("Configuration")
     
-    # Exclude 'League Average' from the dropdown selector so it doesn't appear as a player choice
     available_players = sorted([x for x in graph_df['Name'].unique() if x != 'League Average'])
     
     selected_players = st.sidebar.multiselect(
@@ -69,29 +68,26 @@ def main():
 
     # --- 1. Process Selected Players ---
     for i, player in enumerate(selected_players):
-        # A. Plot Graph
         subset = plot_df[plot_df['Name'] == player]
         if subset.empty: continue
             
         color = colors[i] if i < len(colors) else colors[-1]
 
-        # Trend Line (SWAPPED X/Y)
-        # X: squared_up_rate, Y: launch_angle
+        # Trend Line (X=Squared Up, Y=Launch Angle)
         ax.plot(subset['squared_up_rate'], subset['launch_angle'], color=color, 
                 linewidth=3, alpha=0.4, label=player)
         
-        # Bubbles (SWAPPED X/Y)
+        # Bubbles
         ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
                    s=subset['obs_percentage'] * 1200, alpha=0.85, 
                    color=color, edgecolor='white', linewidth=0.75, zorder=3)
         
-        # B. Get Stats for Table
+        # Get Stats for Table
         if stats_df is not None:
             p_stats = stats_df[stats_df['Name'] == player]
             if not p_stats.empty:
                 p_stats = p_stats.iloc[0]
                 
-                # Format Data
                 bat_spd = f"{p_stats['Bat Speed']:.1f}"
                 hh_rate = f"{p_stats['HH%']:.1%}"
                 gb_str = f"{p_stats['GB%']:.0%} ({p_stats['GB SQ%']:.0%})"
@@ -114,42 +110,48 @@ def main():
             
             table_cell_text.append([lg_bat_spd, lg_hh_rate, lg_gb_str, lg_fb_str])
             table_rows.append("League Avg")
-            table_colors.append("#e0e0e0") # Grey background for distinct look
+            table_colors.append("#e0e0e0")
 
-    # Axis Formatting (SWAPPED)
-    ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold') # Now Y
-    ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold') # Now X
+    # --- Axis Formatting ---
+    ax.set_ylabel('Launch Angle (°)', fontsize=14, weight='bold')
+    ax.set_xlabel('Squared-Up Rate', fontsize=14, weight='bold')
     
-    # Move Percent Formatter to X axis
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    
-    # Swap Limits
-    ax.set_xlim(0, 1.0) 
     ax.set_ylim(-40, 60)
-    
-    # Swap Ticks (Move specific ticks to Y axis)
     ax.set_yticks(np.arange(-40, 61, 10))
     
-    # Legend
-    ax.legend(loc='upper right', frameon=True, fontsize=12)
+    # --- Dynamic X-Axis Logic ---
+    # Find the lowest squared-up rate in the current view
+    min_rate_in_view = plot_df['squared_up_rate'].min()
+    
+    # If the lowest data point is safe (e.g., > 45%), cut the graph at 40%
+    # Otherwise, give a small buffer (0.05) below the minimum, floored at 0
+    if min_rate_in_view > 0.45:
+        x_start = 0.4
+    else:
+        x_start = max(0, min_rate_in_view - 0.05)
+        
+    ax.set_xlim(x_start, 1.0)
+    
+    # --- Legend (Upper Left) ---
+    ax.legend(loc='upper left', frameon=True, fontsize=12)
     ax.grid(True, alpha=0.25)
     sns.despine()
 
-    # --- Add Data Table ---
+    # --- Data Table (Bottom Left) ---
     if table_cell_text:
         col_labels = ["Bat Spd (All Swings)", "HH%", "GB% (SQ%)", "FB+ (SQ%)"]
         
-        # Add the table to the plot
         the_table = plt.table(
             cellText=table_cell_text,
             rowLabels=table_rows,
             colLabels=col_labels,
             rowColours=table_colors,
             cellLoc='center',
-            loc='bottom right',
-            # bbox: [x, y, width, height]
-            # Width increased to 0.45 to fit new cols
-            bbox=[0.53, 0.02, 0.45, 0.15 + (0.04 * len(table_rows))] 
+            loc='bottom left', # Anchor to bottom left
+            # bbox: [x, y, width, height] relative to axes
+            # Positioned at x=0.02 (left side), y=0.02 (bottom)
+            bbox=[0.02, 0.02, 0.45, 0.15 + (0.04 * len(table_rows))] 
         )
         the_table.auto_set_font_size(False)
         the_table.set_fontsize(9)
