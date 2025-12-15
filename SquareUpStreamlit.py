@@ -78,7 +78,7 @@ def main():
             
             # 2. Bubbles
             ax.scatter(subset['squared_up_rate'], subset['launch_angle'], 
-                       s=subset['obs_percentage'] * 1200, alpha=0.85, 
+                       s=subset['obs_percentage'] * 350, alpha=0.85, 
                        color=color, edgecolor='white', linewidth=0.75, zorder=3)
 
         # --- Axis Formatting ---
@@ -171,4 +171,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
